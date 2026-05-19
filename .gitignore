@@ -32,3 +32,6 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Gradle wrapper JAR is intentionally excluded (binary)
+gradle/wrapper/gradle-wrapper.jar
