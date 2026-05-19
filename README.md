@@ -50,3 +50,20 @@ Damit wir beim Entwickeln nicht ausgebremst werden, setzen wir auf einen schnell
 
 ---
 Wenn gewünscht, kann ich als Nächstes auch direkt eine konkrete Projektstruktur (Module, Packages, MVP-Architektur) in dieses Repo schreiben.
+
+## No-cost distribution path for private users (Android)
+
+You can distribute and test the Android app privately without Google Play.
+
+- **No Play Store required**.
+- Build the APK with **GitHub Actions**.
+- Download the generated artifact and install it manually on Android (**sideloading**).
+
+### Step-by-step: install Android artifact
+
+1. Open the relevant **GitHub Actions** workflow run.
+2. Download the APK artifact named **`app-debug-apk`**.
+3. Transfer the APK to your phone (for example via Drive, USB, email, or messaging app).
+4. On Android, enable **Install unknown apps / unknown sources** for the app you use to open the APK (file manager or browser).
+5. Open the APK and install the app.
+6. **Updates:** repeat the same process and install the newer APK over the existing app.
