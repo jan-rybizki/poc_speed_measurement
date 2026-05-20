@@ -1,26 +1,27 @@
 # POC: Realtime Car Detection für Android
 
 ## Ziel
-Dieses Repository enthält jetzt ein erstes **Android-Grundgerüst** mit:
+Dieses Repository enthält ein Android-POC mit:
 - Live-Kamera-Vorschau (CameraX)
 - FPS-Einblendung direkt im Bild
-- GitHub-Action, die automatisch ein **Debug-APK als Artifact** bereitstellt
+- Realtime Object Detection über TensorFlow Lite (YOLO-kompatibles `.tflite` Modell)
+- Bounding Boxes + Klassenlabel + Confidence im Overlay
 
-## Enthalten im aktuellen Stand
-- Android-App-Modul `app`
-- `MainActivity` mit CameraX Preview + `ImageAnalysis` für FPS-Messung
-- Overlay-`TextView` für aktuelle FPS
-- GitHub Workflow `.github/workflows/android-artifact.yml` zum Bauen und Hochladen von `app-debug-apk`
+## Voraussetzungen für YOLO
+Lege dein TFLite-Modell unter folgendem Pfad ab:
+- `app/src/main/assets/yolo11n.tflite`
+
+> Hinweis: Das Modell ist **nicht** im Repo enthalten. Ohne diese Datei läuft die Kamera weiter, aber ohne Detections.
 
 ## Lokal starten (Android Studio)
 1. Projekt in Android Studio öffnen.
 2. Gradle Sync durchführen.
-3. App auf ein Gerät mit Kamera installieren/starten.
-4. Beim ersten Start Kameraberechtigung erlauben.
+3. Falls noch nicht vorhanden: `yolo11n.tflite` nach `app/src/main/assets/` kopieren.
+4. App auf ein Gerät mit Kamera installieren/starten.
+5. Beim ersten Start Kameraberechtigung erlauben.
 
-## APK über GitHub Actions herunterladen
-1. In GitHub zum Tab **Actions** gehen.
-2. Workflow **Android Debug Artifact** auswählen.
-3. Einen Run öffnen (z. B. nach Push oder manuell via `workflow_dispatch`).
-4. Artifact **`app-debug-apk`** herunterladen.
-5. APK auf Android-Gerät sideloaden.
+## Aktueller Pipeline-Flow
+- CameraX Preview + `ImageAnalysis`
+- Pro Frame: Konvertierung `ImageProxy -> Bitmap`
+- Inferenz mit TFLite Task Vision `ObjectDetector`
+- Zeichnen von Bounding Boxes und Klassen in `OverlayView`
