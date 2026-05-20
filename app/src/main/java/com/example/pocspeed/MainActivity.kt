@@ -60,7 +60,7 @@ class MainActivity : AppCompatActivity() {
             val cameraProvider = cameraProviderFuture.get()
 
             val preview = Preview.Builder().build().also {
-                it.surfaceProvider = previewView.surfaceProvider
+                it.surfaceProvider = previewView.previewSurfaceProvider
             }
 
             val analysis = ImageAnalysis.Builder()
