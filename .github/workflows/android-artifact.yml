@@ -64,8 +64,9 @@ jobs:
             fs.writeFileSync(path, updated);
 
             const branch = context.ref.replace('refs/heads/', '');
-            await require('@actions/exec').exec('git', ['config', 'user.name', 'github-actions[bot]']);
-            await require('@actions/exec').exec('git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
-            await require('@actions/exec').exec('git', ['add', path]);
-            await require('@actions/exec').exec('git', ['commit', '-m', 'ci: update latest debug artifact link']);
-            await require('@actions/exec').exec('git', ['push', 'origin', `HEAD:${branch}`]);
+            const { execFileSync } = require('node:child_process');
+            execFileSync('git', ['config', 'user.name', 'github-actions[bot]'], { stdio: 'inherit' });
+            execFileSync('git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], { stdio: 'inherit' });
+            execFileSync('git', ['add', path], { stdio: 'inherit' });
+            execFileSync('git', ['commit', '-m', 'ci: update latest debug artifact link'], { stdio: 'inherit' });
+            execFileSync('git', ['push', 'origin', `HEAD:${branch}`], { stdio: 'inherit' });
