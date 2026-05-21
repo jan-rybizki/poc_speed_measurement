@@ -5,6 +5,9 @@ on:
     branches: ["**"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-debug-apk:
     runs-on: ubuntu-latest
@@ -28,7 +31,41 @@ jobs:
         run: gradle :app:assembleDebug
 
       - name: Upload APK artifact
+        id: upload_apk
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Update README with latest artifact link
+        if: github.actor != 'github-actions[bot]'
+        uses: actions/github-script@v7
+        env:
+          ARTIFACT_URL: ${{ steps.upload_apk.outputs.artifact-url }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- AUTO-APK-LINK -->';
+            const newLine = `${marker} [Latest Debug APK](${process.env.ARTIFACT_URL})`;
+
+            const path = 'README.md';
+            const content = fs.readFileSync(path, 'utf8');
+            const regex = new RegExp(`${marker}.*`);
+            const updated = regex.test(content)
+              ? content.replace(regex, newLine)
+              : `${content.trimEnd()}\n\n## Download\n${newLine}\n`;
+
+            if (updated === content) {
+              core.info('README already up to date.');
+              return;
+            }
+
+            fs.writeFileSync(path, updated);
+
+            const branch = context.ref.replace('refs/heads/', '');
+            await require('@actions/exec').exec('git', ['config', 'user.name', 'github-actions[bot]']);
+            await require('@actions/exec').exec('git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+            await require('@actions/exec').exec('git', ['add', path]);
+            await require('@actions/exec').exec('git', ['commit', '-m', 'ci: update latest debug artifact link']);
+            await require('@actions/exec').exec('git', ['push', 'origin', `HEAD:${branch}`]);
