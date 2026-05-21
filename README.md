@@ -24,3 +24,17 @@ Dieses Repository enthält ein Android-POC mit:
 - Pro Frame: Konvertierung `ImageProxy -> Bitmap`
 - Inferenz mit TFLite Task Vision `ObjectDetector`
 - Zeichnen von Bounding Boxes und Klassen in `OverlayView`
+
+
+## Stabiler Dev-Install-Workflow (verhindert Install-Fehler bei Updates)
+Für den reinen Dev-Workflow gibt es ein Install-Skript, das zuerst ein normales Update versucht (`adb install -r`) und bei typischen Update-Konflikten automatisch deinstalliert und neu installiert.
+
+1. USB-Debugging aktivieren und Gerät verbinden.
+2. Im Projektroot ausführen:
+   `./scripts/dev-install.sh`
+
+Das reduziert "Install failed" im Alltag deutlich, auch wenn z. B. eine inkompatible Alt-Installation auf dem Gerät liegt.
+
+
+## Download
+<!-- AUTO-APK-LINK --> [Latest Debug APK](file://app/build/outputs/apk/debug/app-debug.apk)
