@@ -21,6 +21,10 @@ import androidx.core.content.ContextCompat
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.MessageDigest
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -31,12 +35,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var overlayView: OverlayView
     private lateinit var fpsTextView: TextView
     private val cameraExecutor = Executors.newSingleThreadExecutor()
+    private val modelExecutor = Executors.newSingleThreadExecutor()
 
     private var frameCounter = 0
     private var lastFpsTimestampMs = 0L
     private val isProcessing = AtomicBoolean(false)
 
     private var objectDetector: ObjectDetector? = null
+
+    private val modelFileName = "yolo11n.tflite"
+    private val modelDownloadUrl =
+        "https://huggingface.co/ultralytics/yolo11/resolve/main/yolo11n_saved_model/yolo11n_float32.tflite"
+    // TODO: Replace with checksum of your own hosted model artifact.
+    private val modelSha256 = "REPLACE_WITH_REAL_SHA256"
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -56,25 +67,119 @@ class MainActivity : AppCompatActivity() {
         fpsTextView = findViewById(R.id.fpsTextView)
         lastFpsTimestampMs = System.currentTimeMillis()
 
-        objectDetector = createObjectDetector()
+        prepareModelAndStart()
+    }
 
-        if (hasCameraPermission()) {
-            startCamera()
-        } else {
-            requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+    private fun prepareModelAndStart() {
+        modelExecutor.execute {
+            val modelFile = ensureModelFile()
+            objectDetector = createObjectDetector(modelFile)
+
+            runOnUiThread {
+                if (hasCameraPermission()) {
+                    startCamera()
+                } else {
+                    requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }
+            }
         }
     }
 
-    private fun createObjectDetector(): ObjectDetector? {
+    private fun ensureModelFile(): File? {
+        val modelDir = File(filesDir, "models")
+        if (!modelDir.exists()) {
+            modelDir.mkdirs()
+        }
+
+        val targetFile = File(modelDir, modelFileName)
+        if (targetFile.exists() && targetFile.length() > 0L && isModelChecksumValid(targetFile)) {
+            return targetFile
+        }
+
+        if (targetFile.exists()) {
+            targetFile.delete()
+        }
+
+        runOnUiThread {
+            fpsTextView.text = "FPS: Lade Modell..."
+        }
+
+        return try {
+            downloadModel(targetFile)
+            if (isModelChecksumValid(targetFile)) {
+                targetFile
+            } else {
+                targetFile.delete()
+                runOnUiThread {
+                    fpsTextView.text = "FPS: Modell-Prüfsumme ungültig"
+                }
+                null
+            }
+        } catch (_: Exception) {
+            targetFile.delete()
+            runOnUiThread {
+                fpsTextView.text = "FPS: Model-Download fehlgeschlagen"
+            }
+            null
+        }
+    }
+
+    private fun downloadModel(targetFile: File) {
+        val connection = URL(modelDownloadUrl).openConnection() as HttpURLConnection
+        connection.connectTimeout = 15000
+        connection.readTimeout = 60000
+        connection.requestMethod = "GET"
+        connection.instanceFollowRedirects = true
+
+        connection.connect()
+        if (connection.responseCode !in 200..299) {
+            throw IllegalStateException("HTTP ${connection.responseCode}")
+        }
+
+        connection.inputStream.use { input ->
+            targetFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+
+        connection.disconnect()
+    }
+
+    private fun isModelChecksumValid(modelFile: File): Boolean {
+        if (modelSha256 == "REPLACE_WITH_REAL_SHA256") {
+            return true
+        }
+
+        val digest = MessageDigest.getInstance("SHA-256")
+        modelFile.inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) {
+                    break
+                }
+                digest.update(buffer, 0, read)
+            }
+        }
+
+        val actualSha = digest.digest().joinToString("") { "%02x".format(it) }
+        return actualSha.equals(modelSha256.lowercase(Locale.US), ignoreCase = true)
+    }
+
+    private fun createObjectDetector(modelFile: File?): ObjectDetector? {
+        if (modelFile == null) {
+            return null
+        }
+
         return try {
             val options = ObjectDetector.ObjectDetectorOptions.builder()
                 .setMaxResults(5)
                 .setScoreThreshold(0.4f)
                 .build()
-            ObjectDetector.createFromFileAndOptions(this, "yolo11n.tflite", options)
+            ObjectDetector.createFromFileAndOptions(this, modelFile.absolutePath, options)
         } catch (_: Exception) {
             runOnUiThread {
-                fpsTextView.text = "FPS: -- (Model yolo11n.tflite fehlt in app/src/main/assets)"
+                fpsTextView.text = "FPS: -- (Model konnte nicht geladen werden)"
             }
             null
         }
@@ -212,5 +317,6 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()
+        modelExecutor.shutdown()
     }
 }

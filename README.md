@@ -8,17 +8,16 @@ Dieses Repository enthält ein Android-POC mit:
 - Bounding Boxes + Klassenlabel + Confidence im Overlay
 
 ## Voraussetzungen für YOLO
-Lege dein TFLite-Modell unter folgendem Pfad ab:
-- `app/src/main/assets/yolo11n.tflite`
-
-> Hinweis: Das Modell ist **nicht** im Repo enthalten. Ohne diese Datei läuft die Kamera weiter, aber ohne Detections.
+- Beim ersten Start lädt die App das Modell automatisch nach `files/models/yolo11n.tflite` herunter.
+- Standard-URL im Code: `MainActivity.modelDownloadUrl` (Hugging Face).
+- Für produktive Nutzung sollte die Datei aus einer eigenen, stabilen Quelle geladen werden und `modelSha256` im Code gesetzt werden (Integritätsprüfung per SHA-256).
 
 ## Lokal starten (Android Studio)
 1. Projekt in Android Studio öffnen.
 2. Gradle Sync durchführen.
-3. Falls noch nicht vorhanden: `yolo11n.tflite` nach `app/src/main/assets/` kopieren.
-4. App auf ein Gerät mit Kamera installieren/starten.
-5. Beim ersten Start Kameraberechtigung erlauben.
+3. App auf ein Gerät mit Kamera installieren/starten.
+4. Beim ersten Start Kameraberechtigung erlauben.
+5. Beim ersten Start mit Internetverbindung wird das Modell automatisch heruntergeladen.
 
 ## Aktueller Pipeline-Flow
 - CameraX Preview + `ImageAnalysis`
