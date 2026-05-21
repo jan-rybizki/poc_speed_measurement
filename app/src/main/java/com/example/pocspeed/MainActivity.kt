@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import java.io.ByteArrayOutputStream
+import android.util.Log
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -30,6 +31,10 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
     private lateinit var previewView: PreviewView
     private lateinit var overlayView: OverlayView
@@ -115,10 +120,11 @@ class MainActivity : AppCompatActivity() {
                 }
                 null
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             targetFile.delete()
+            Log.e(TAG, "Model download failed", e)
             runOnUiThread {
-                fpsTextView.text = "FPS: Model-Download fehlgeschlagen"
+                fpsTextView.text = "FPS: Model-Download fehlgeschlagen (${e.message ?: "Unbekannter Fehler"})"
             }
             null
         }
@@ -130,6 +136,7 @@ class MainActivity : AppCompatActivity() {
         connection.readTimeout = 60000
         connection.requestMethod = "GET"
         connection.instanceFollowRedirects = true
+        connection.setRequestProperty("User-Agent", "poc-speed-android/1.0")
 
         connection.connect()
         if (connection.responseCode !in 200..299) {
