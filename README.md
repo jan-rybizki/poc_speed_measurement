@@ -36,5 +36,25 @@ Für den reinen Dev-Workflow gibt es ein Install-Skript, das zuerst ein normales
 Das reduziert "Install failed" im Alltag deutlich, auch wenn z. B. eine inkompatible Alt-Installation auf dem Gerät liegt.
 
 
+
+## Fallback bei Model-Download-Fehlern (z. B. HTTP 404)
+Wenn der Auto-Download beim ersten Start fehlschlägt, könnt ihr das Modell manuell auf das Gerät legen und die App trotzdem direkt starten.
+
+### Variante A (empfohlen, robust): per `adb` in den App-Sandbox-Ordner kopieren
+1. Modell lokal herunterladen (Datei muss am Ende `yolo11n.tflite` heißen).
+2. Gerät per USB verbinden (USB-Debugging aktiv).
+3. Aus dem Projektroot ausführen:
+   `./scripts/push-model.sh com.example.pocspeed ~/Downloads/yolo11n_float32.tflite`
+4. App neu starten.
+
+Die App sucht das Modell unter `files/models/yolo11n.tflite`. Liegt die Datei dort, wird kein Netzwerk-Download mehr versucht.
+
+### Variante B (ohne adb): APK mit eingebettetem Modell bauen
+Alternativ kann das Modell als Asset mit ausgeliefert werden (größere APK, aber keine Laufzeit-Downloads).
+
+### Troubleshooting
+- In Logcat steht bei Fehlern jetzt die vollständige URL + HTTP-Status, damit 404/403 direkt sichtbar ist.
+- Falls die Quelle instabil ist, bitte `modelDownloadUrl` in `MainActivity` auf eine eigene, stabile Hosting-URL umstellen.
+
 ## Download
-<!-- AUTO-APK-LINK --> [Latest Debug APK](https://github.com/jan-rybizki/poc_speed_measurement/actions/runs/26246013876/artifacts/7144351449)
+<!-- AUTO-APK-LINK --> [Latest Debug APK](https://github.com/jan-rybizki/poc_speed_measurement/actions/runs/26248998285/artifacts/7145582669)
