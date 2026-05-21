@@ -140,7 +140,13 @@ class MainActivity : AppCompatActivity() {
 
         connection.connect()
         if (connection.responseCode !in 200..299) {
-            throw IllegalStateException("HTTP ${connection.responseCode}")
+            val errorSnippet = connection.errorStream?.bufferedReader()?.use { reader ->
+                reader.readText().take(180)
+            } ?: ""
+            throw IllegalStateException(
+                "HTTP ${connection.responseCode} ${connection.responseMessage} @ $modelDownloadUrl" +
+                    if (errorSnippet.isNotBlank()) " | $errorSnippet" else ""
+            )
         }
 
         connection.inputStream.use { input ->
