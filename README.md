@@ -57,4 +57,4 @@ Alternativ kann das Modell als Asset mit ausgeliefert werden (größere APK, abe
 - Falls die Quelle instabil ist, bitte `modelDownloadUrl` in `MainActivity` auf eine eigene, stabile Hosting-URL umstellen.
 
 ## Download
-<!-- AUTO-APK-LINK --> [Latest Debug APK](https://github.com/jan-rybizki/poc_speed_measurement/actions/runs/26246013876/artifacts/7144351449)
+<!-- AUTO-APK-LINK --> [Latest Debug APK](https://github.com/jan-rybizki/poc_speed_measurement/actions/runs/26248998285/artifacts/7145582669)
