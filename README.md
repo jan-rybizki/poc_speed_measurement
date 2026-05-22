@@ -8,8 +8,8 @@ Dieses Repository enthält ein Android-POC mit:
 - Bounding Boxes + Klassenlabel + Confidence im Overlay
 
 ## Voraussetzungen für YOLO
-- Beim ersten Start lädt die App das Modell automatisch nach `files/models/yolo11n.tflite` herunter.
-- Standard-URL im Code: `MainActivity.modelDownloadUrl` (Hugging Face).
+- Beim ersten Start lädt die App ein TFLite-Laufzeitmodell nach `files/models/yolo11n.tflite` herunter.
+- Standard-URL im Code: `MainActivity.modelDownloadUrl` (angefragte `.pt`-Quelle). Für die App-Laufzeit wird automatisch eine kompatible `.tflite`-Datei genutzt.
 - Für produktive Nutzung sollte die Datei aus einer eigenen, stabilen Quelle geladen werden und `modelSha256` im Code gesetzt werden (Integritätsprüfung per SHA-256).
 
 ## Lokal starten (Android Studio)
@@ -38,3 +38,26 @@ Das reduziert "Install failed" im Alltag deutlich, auch wenn z. B. eine inkompat
 
 ## Download
 <!-- AUTO-APK-LINK --> [Latest Debug APK](https://github.com/jan-rybizki/poc_speed_measurement/actions/runs/26246013876/artifacts/7144351449)
+
+
+## Wichtiger Hinweis zu `.pt`
+Die Android-App nutzt TensorFlow Lite Task Vision. Ein YOLO-`.pt`-Checkpoint kann nicht direkt mit `ObjectDetector` geladen werden.
+Darum mappt die App die angefragte YOLO11-`.pt`-URL intern auf den offiziellen YOLO11n-`float32.tflite`-Export. Du musst **nicht** lokal auf dem Handy konvertieren.
+
+
+**Nur Handy / kein Python lokal?** Kein Problem: Gib einfach einen Online-`.tflite`-Link (oder die bekannte YOLO11n-`.pt`-URL, die intern gemappt wird) in den Code ein und starte die App.
+
+
+## YOLO11n automatisch in GitHub Actions exportieren
+Du kannst die Konvertierung komplett online in GitHub Actions laufen lassen (kein lokales Python nötig):
+
+1. Öffne **Actions** → **Build YOLO11n TFLite**.
+2. Starte den Workflow per **Run workflow**.
+3. Optional: `create_release=true`, dann wird zusätzlich ein GitHub Release mit den Artefakten erstellt.
+
+Der Workflow erzeugt:
+- `*.tflite` Export(e)
+- `SHA256SUMS.txt`
+- Original `yolo11n.pt`
+
+Datei: `.github/workflows/build-yolo11n-tflite.yml`.
