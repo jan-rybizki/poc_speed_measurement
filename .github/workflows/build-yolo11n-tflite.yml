@@ -1,0 +1,61 @@
+name: Build YOLO11n TFLite
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "Also create a GitHub Release with generated files"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ultralytics tensorflow
+
+      - name: Download official YOLO11n PT
+        run: |
+          wget -O yolo11n.pt https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt
+
+      - name: Export to TFLite
+        run: |
+          yolo export model=yolo11n.pt format=tflite
+
+      - name: Create hashes
+        run: |
+          find . -name "*.tflite" -print -exec sha256sum {} \; | tee SHA256SUMS.txt
+          sha256sum yolo11n.pt >> SHA256SUMS.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yolo11n-tflite
+          path: |
+            **/*.tflite
+            SHA256SUMS.txt
+            yolo11n.pt
+
+      - name: Create GitHub Release (optional)
+        if: ${{ github.event.inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: yolo11n-tflite-${{ github.run_number }}
+          name: YOLO11n TFLite build #${{ github.run_number }}
+          files: |
+            **/*.tflite
+            SHA256SUMS.txt
+            yolo11n.pt

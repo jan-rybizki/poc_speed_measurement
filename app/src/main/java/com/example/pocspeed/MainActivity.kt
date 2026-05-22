@@ -48,9 +48,11 @@ class MainActivity : AppCompatActivity() {
 
     private var objectDetector: ObjectDetector? = null
 
-    private val modelFileName = "yolo11n.tflite"
+    // Requested source checkpoint URL (.pt).
     private val modelDownloadUrl =
-        "https://huggingface.co/ultralytics/yolo11/resolve/main/yolo11n_saved_model/yolo11n_float32.tflite"
+        "https://huggingface.co/Ultralytics/YOLO11/resolve/main/yolo11n.pt?download=true"
+    // Runtime model for TFLite Task Vision.
+    private val modelFileName = "yolo11n.tflite"
     // TODO: Replace with checksum of your own hosted model artifact.
     private val modelSha256 = "REPLACE_WITH_REAL_SHA256"
 
@@ -131,7 +133,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun downloadModel(targetFile: File) {
-        val connection = URL(modelDownloadUrl).openConnection() as HttpURLConnection
+        val runtimeUrl = resolveRuntimeModelUrl(modelDownloadUrl)
+        val connection = URL(runtimeUrl).openConnection() as HttpURLConnection
         connection.connectTimeout = 15000
         connection.readTimeout = 60000
         connection.requestMethod = "GET"
@@ -150,6 +153,27 @@ class MainActivity : AppCompatActivity() {
         }
 
         connection.disconnect()
+    }
+
+    private fun resolveRuntimeModelUrl(sourceUrl: String): String {
+        val normalized = sourceUrl.lowercase(Locale.US)
+
+        // Known online fallback: requested YOLO11n .pt -> hosted TFLite export.
+        if (normalized.contains("huggingface.co/ultralytics/yolo11") && normalized.contains("yolo11n.pt")) {
+            runOnUiThread {
+                fpsTextView.text = "FPS: Kein lokales Konvertieren nötig (nutze Online-TFLite)"
+            }
+            return "https://huggingface.co/ultralytics/yolo11/resolve/main/yolo11n_saved_model/yolo11n_float32.tflite"
+        }
+
+        // If another .pt URL is provided, we cannot convert on-device in this app.
+        if (normalized.endsWith(".pt") || normalized.contains(".pt?")) {
+            runOnUiThread {
+                fpsTextView.text = "FPS: .pt braucht Online-.tflite Link"
+            }
+        }
+
+        return sourceUrl
     }
 
     private fun isModelChecksumValid(modelFile: File): Boolean {
