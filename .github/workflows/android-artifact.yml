@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: android-debug-artifact-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-debug-apk:
     runs-on: ubuntu-latest
@@ -15,6 +19,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
@@ -46,27 +53,40 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
+            const { execFileSync } = require('node:child_process');
+
             const marker = '<!-- AUTO-APK-LINK -->';
             const newLine = `${marker} [Latest Debug APK](${process.env.ARTIFACT_URL})`;
-
             const path = 'README.md';
-            const content = fs.readFileSync(path, 'utf8');
-            const regex = new RegExp(`${marker}.*`);
-            const updated = regex.test(content)
-              ? content.replace(regex, newLine)
-              : `${content.trimEnd()}\n\n## Download\n${newLine}\n`;
+            const branch = context.ref.replace('refs/heads/', '');
 
-            if (updated === content) {
-              core.info('README already up to date.');
+            const git = (args) => execFileSync('git', args, { stdio: 'inherit' });
+            const updateReadme = () => {
+              const content = fs.readFileSync(path, 'utf8');
+              const regex = new RegExp(`${marker}.*`);
+              const updated = regex.test(content)
+                ? content.replace(regex, newLine)
+                : `${content.trimEnd()}\n\n## Download\n${newLine}\n`;
+
+              if (updated === content) {
+                core.info('README already up to date.');
+                return false;
+              }
+
+              fs.writeFileSync(path, updated);
+              return true;
+            };
+
+            git(['config', 'user.name', 'github-actions[bot]']);
+            git(['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+            git(['fetch', 'origin', branch]);
+            git(['pull', '--rebase', 'origin', branch]);
+
+            if (!updateReadme()) {
               return;
             }
 
-            fs.writeFileSync(path, updated);
-
-            const branch = context.ref.replace('refs/heads/', '');
-            const { execFileSync } = require('node:child_process');
-            execFileSync('git', ['config', 'user.name', 'github-actions[bot]'], { stdio: 'inherit' });
-            execFileSync('git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], { stdio: 'inherit' });
-            execFileSync('git', ['add', path], { stdio: 'inherit' });
-            execFileSync('git', ['commit', '-m', 'ci: update latest debug artifact link'], { stdio: 'inherit' });
-            execFileSync('git', ['push', 'origin', `HEAD:${branch}`], { stdio: 'inherit' });
+            git(['add', path]);
+            git(['commit', '-m', 'ci: update latest debug artifact link']);
+            git(['pull', '--rebase', 'origin', branch]);
+            git(['push', 'origin', `HEAD:${branch}`]);
