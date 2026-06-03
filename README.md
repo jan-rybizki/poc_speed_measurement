@@ -8,18 +8,22 @@ Dieses Repository enthält ein Android-POC mit:
 - Bounding Boxes + Klassenlabel + Confidence im Overlay
 
 ## Voraussetzungen für YOLO
-- Beim ersten Start lädt die App ein TFLite-Laufzeitmodell nach `files/models/yolo11n.tflite` herunter.
-- Standard-URL im Code: `MainActivity.modelDownloadUrl` (angefragte `.pt`-Quelle). Für die App-Laufzeit wird automatisch eine kompatible `.tflite`-Datei genutzt.
-- Für produktive Nutzung sollte die Datei aus einer eigenen, stabilen Quelle geladen werden und `modelSha256` im Code gesetzt werden (Integritätsprüfung per SHA-256).
+- Die CI-Pipeline exportiert YOLO11n vor dem APK-Build nach TensorFlow Lite und bettet `yolo11n.tflite` direkt in die APK ein.
+- Beim App-Start kopiert die App das eingebettete Modell aus den APK-Assets nach `files/models/yolo11n.tflite` und lädt genau diese lokale Datei für TensorFlow Lite Task Vision.
+- Dadurch ist die Debug-APK nicht von einem kurzlebigen GitHub-Actions-Artifact-Link oder einem Runtime-Download abhängig.
+- Bei jedem Start wird die lokale Kopie aus dem eingebetteten APK-Asset neu geschrieben. Damit nutzt eine aktualisierte App auch wirklich das Modell, das mit dieser APK gebaut wurde.
 
 ## Lokal starten (Android Studio)
 1. Projekt in Android Studio öffnen.
-2. Gradle Sync durchführen.
-3. App auf ein Gerät mit Kamera installieren/starten.
-4. Beim ersten Start Kameraberechtigung erlauben.
-5. Beim ersten Start mit Internetverbindung wird das Modell automatisch heruntergeladen.
+2. Für lokale Builds zuerst ein TFLite-Modell unter `app/src/main/assets/yolo11n.tflite` bereitstellen. Die CI erledigt diesen Schritt automatisch; lokal kannst du die Befehle aus dem Abschnitt **YOLO11n lokal exportieren und einbetten** nutzen.
+3. Gradle Sync durchführen.
+4. App auf ein Gerät mit Kamera installieren/starten.
+5. Beim ersten Start Kameraberechtigung erlauben.
 
 ## Aktueller Pipeline-Flow
+- GitHub Actions lädt `yolo11n.pt`, exportiert es nach `.tflite` und kopiert das Ergebnis vor dem Android-Build nach `app/src/main/assets/yolo11n.tflite`.
+- Die APK enthält dadurch das TFLite-Modell.
+- Beim Start kopiert die App das Modell aus den Assets nach `files/models/yolo11n.tflite`.
 - CameraX Preview + `ImageAnalysis`
 - Pro Frame: Konvertierung `ImageProxy -> Bitmap`
 - Inferenz mit TFLite Task Vision `ObjectDetector`
@@ -42,22 +46,33 @@ Das reduziert "Install failed" im Alltag deutlich, auch wenn z. B. eine inkompat
 
 ## Wichtiger Hinweis zu `.pt`
 Die Android-App nutzt TensorFlow Lite Task Vision. Ein YOLO-`.pt`-Checkpoint kann nicht direkt mit `ObjectDetector` geladen werden.
-Darum mappt die App die angefragte YOLO11-`.pt`-URL intern auf den offiziellen YOLO11n-`float32.tflite`-Export. Du musst **nicht** lokal auf dem Handy konvertieren.
+Darum wird der `.pt`-Checkpoint in GitHub Actions vor dem APK-Build nach `.tflite` exportiert. Die App lädt zur Laufzeit keinen `.pt`-Checkpoint und konvertiert auch nicht auf dem Handy.
 
 
-**Nur Handy / kein Python lokal?** Kein Problem: Gib einfach einen Online-`.tflite`-Link (oder die bekannte YOLO11n-`.pt`-URL, die intern gemappt wird) in den Code ein und starte die App.
+## YOLO11n automatisch in GitHub Actions exportieren und in die APK einbetten
+Der Workflow **Android Debug Artifact** baut jetzt App und Modell zusammen:
 
+1. `yolo11n.pt` wird heruntergeladen.
+2. YOLO11n wird nach TensorFlow Lite exportiert.
+3. Das erzeugte `.tflite` wird als `app/src/main/assets/yolo11n.tflite` in die Android-App kopiert.
+4. Danach wird die Debug-APK gebaut.
+5. Die Debug-APK enthält damit genau das Modell aus demselben CI-Lauf.
 
-## YOLO11n automatisch in GitHub Actions exportieren
-Du kannst die Konvertierung komplett online in GitHub Actions laufen lassen (kein lokales Python nötig):
+Datei: `.github/workflows/android-artifact.yml`.
 
-1. Öffne **Actions** → **Build YOLO11n TFLite**.
-2. Starte den Workflow per **Run workflow**.
-3. Optional: `create_release=true`, dann wird zusätzlich ein GitHub Release mit den Artefakten erstellt.
+Der separate Workflow **Build YOLO11n TFLite** bleibt nützlich, wenn du nur den YOLO-Export testen oder die Modell-Dateien separat als Artifact/Release erzeugen möchtest.
 
-Der Workflow erzeugt:
-- `*.tflite` Export(e)
-- `SHA256SUMS.txt`
-- Original `yolo11n.pt`
+## YOLO11n lokal exportieren und einbetten
+Für einen lokalen Android-Studio-Build kannst du das Modell ebenfalls lokal erzeugen:
 
-Datei: `.github/workflows/build-yolo11n-tflite.yml`.
+```bash
+python -m pip install --upgrade pip
+pip install ultralytics tensorflow
+wget -O yolo11n.pt https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt
+yolo export model=yolo11n.pt format=tflite
+mkdir -p app/src/main/assets
+model_file="$(find . -path './app/*' -prune -o -name '*.tflite' -print | sort | head -n 1)"
+cp "$model_file" app/src/main/assets/yolo11n.tflite
+```
+
+`app/src/main/assets/yolo11n.tflite` ist absichtlich in `.gitignore` eingetragen, damit das große generierte Modell nicht ins Repository committed wird.
