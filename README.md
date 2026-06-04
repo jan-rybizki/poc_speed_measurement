@@ -41,7 +41,7 @@ Das reduziert "Install failed" im Alltag deutlich, auch wenn z. B. eine inkompat
 
 
 ## Download
-<!-- AUTO-APK-LINK --> [Latest Debug APK](https://github.com/jan-rybizki/poc_speed_measurement/actions/runs/26845439793/artifacts/7368798728)
+<!-- AUTO-APK-LINK --> [Latest Debug APK](https://github.com/jan-rybizki/poc_speed_measurement/actions/runs/26971574066/artifacts/7419918470)
 
 
 ## Wichtiger Hinweis zu `.pt`
