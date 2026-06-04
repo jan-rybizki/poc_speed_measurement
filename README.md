@@ -86,7 +86,7 @@ Hilfreiche Zeilen zum Kopieren/Teilen sind besonders:
 
 
 ## Download
-<!-- AUTO-APK-LINK --> [Latest Debug APK](https://github.com/jan-rybizki/poc_speed_measurement/actions/runs/26973548613/artifacts/7420720341)
+<!-- AUTO-APK-LINK --> [Latest Debug APK](https://github.com/jan-rybizki/poc_speed_measurement/actions/runs/26974483028/artifacts/7421103722)
 
 
 ## Wichtiger Hinweis zu `.pt`
