@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+        private const val DEBUG_PANEL_LINE_COUNT = 18
     }
 
     private lateinit var previewView: PreviewView
@@ -47,6 +48,8 @@ class MainActivity : AppCompatActivity() {
     private val isProcessing = AtomicBoolean(false)
 
     private var objectDetector: ObjectDetector? = null
+    @Volatile
+    private var modelStatusText = "YOLO: startet"
     private val frameFailureLogged = AtomicBoolean(false)
     private val modelDebugLines = mutableListOf<String>()
 
@@ -83,6 +86,7 @@ class MainActivity : AppCompatActivity() {
             objectDetector = createObjectDetector(modelFile)
 
             runOnUiThread {
+                updateFpsText()
                 if (hasCameraPermission()) {
                     startCamera()
                 } else {
@@ -207,7 +211,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         runOnUiThread {
-            val lines = synchronized(modelDebugLines) { modelDebugLines.takeLast(10).toList() }
+            val lines = synchronized(modelDebugLines) { modelDebugLines.takeLast(DEBUG_PANEL_LINE_COUNT).toList() }
             modelDebugTextView.text = lines.joinToString("\n")
         }
     }
@@ -215,6 +219,7 @@ class MainActivity : AppCompatActivity() {
     private fun createObjectDetector(modelFile: File?): ObjectDetector? {
         if (modelFile == null) {
             addModelDebug("Kein ModelFile vorhanden; ObjectDetector wird nicht erstellt.")
+            modelStatusText = "YOLO: Model-Datei fehlt"
             return null
         }
 
@@ -225,14 +230,16 @@ class MainActivity : AppCompatActivity() {
                 .setScoreThreshold(0.4f)
                 .build()
             ObjectDetector.createFromFileAndOptions(this, modelFile.absolutePath, options).also {
+                modelStatusText = "YOLO: geladen"
                 addModelDebug("ObjectDetector erfolgreich geladen.")
             }
         } catch (e: Exception) {
             val errorMessage = e.message ?: e.javaClass.simpleName
+            modelStatusText = "YOLO: Ladefehler"
             addModelDebug("ObjectDetector-Ladefehler: $errorMessage", e)
-            addModelDebug("Hinweis: Ist die Datei vorhanden, ist oft das TFLite/Metadata-Format nicht mit TensorFlow Lite Task Vision ObjectDetector kompatibel.")
+            addModelDebug("Hinweis: Datei ist da; meist passt das TFLite/Metadata-Format nicht zum Task Vision ObjectDetector.")
             runOnUiThread {
-                fpsTextView.text = "FPS: -- (Model konnte nicht geladen werden: $errorMessage)"
+                updateFpsText()
             }
             null
         }
@@ -287,7 +294,11 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             if (frameFailureLogged.compareAndSet(false, true)) {
+                modelStatusText = "YOLO: Inferenzfehler"
                 addModelDebug("Erster Inferenzfehler: ${e.message ?: e.javaClass.simpleName}", e)
+                runOnUiThread {
+                    updateFpsText()
+                }
             }
         } finally {
             isProcessing.set(false)
@@ -364,9 +375,16 @@ class MainActivity : AppCompatActivity() {
             lastFpsTimestampMs = nowMs
 
             runOnUiThread {
-                fpsTextView.text = String.format(Locale.US, "FPS: %.1f", fps)
+                updateFpsText(fps)
             }
         }
+    }
+
+    private fun updateFpsText(fps: Float? = null) {
+        val fpsLine = fps?.let { String.format(Locale.US, "FPS: %.1f", it) }
+            ?: fpsTextView.text.toString().lineSequence().firstOrNull()
+            ?: "FPS: --"
+        fpsTextView.text = "$fpsLine\n$modelStatusText"
     }
 
     override fun onDestroy() {
