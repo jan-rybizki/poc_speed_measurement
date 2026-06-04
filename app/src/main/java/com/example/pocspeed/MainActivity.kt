@@ -10,6 +10,7 @@ import android.graphics.YuvImage
 import android.os.Bundle
 import android.util.Log
 import android.widget.TextView
+import java.io.BufferedInputStream
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
@@ -23,6 +24,7 @@ import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.security.MessageDigest
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -36,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
     private lateinit var overlayView: OverlayView
     private lateinit var fpsTextView: TextView
+    private lateinit var modelDebugTextView: TextView
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private val modelExecutor = Executors.newSingleThreadExecutor()
 
@@ -44,6 +47,8 @@ class MainActivity : AppCompatActivity() {
     private val isProcessing = AtomicBoolean(false)
 
     private var objectDetector: ObjectDetector? = null
+    private val frameFailureLogged = AtomicBoolean(false)
+    private val modelDebugLines = mutableListOf<String>()
 
     // Runtime model for TFLite Task Vision. The CI build embeds this asset into the APK.
     private val modelFileName = "yolo11n.tflite"
@@ -65,12 +70,14 @@ class MainActivity : AppCompatActivity() {
         previewView = findViewById(R.id.previewView)
         overlayView = findViewById(R.id.overlayView)
         fpsTextView = findViewById(R.id.fpsTextView)
+        modelDebugTextView = findViewById(R.id.modelDebugTextView)
         lastFpsTimestampMs = System.currentTimeMillis()
 
         prepareModelAndStart()
     }
 
     private fun prepareModelAndStart() {
+        addModelDebug("Start: suche YOLO Asset '$embeddedModelAssetName'")
         modelExecutor.execute {
             val modelFile = ensureModelFile()
             objectDetector = createObjectDetector(modelFile)
@@ -87,12 +94,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun ensureModelFile(): File? {
         val modelDir = File(filesDir, "models")
+        addModelDebug("App filesDir: ${filesDir.absolutePath}")
+        addModelDebug("Model-Zielordner: ${modelDir.absolutePath}")
+
         if (!modelDir.exists()) {
-            modelDir.mkdirs()
+            val created = modelDir.mkdirs()
+            addModelDebug("Model-Zielordner angelegt: $created")
         }
+
+        logVisibleModelFiles(modelDir)
 
         val targetFile = File(modelDir, modelFileName)
         if (targetFile.exists()) {
+            addModelDebug("Alte lokale Kopie wird ersetzt: ${describeFile(targetFile)}")
             targetFile.delete()
         }
 
@@ -103,8 +117,13 @@ class MainActivity : AppCompatActivity() {
         return try {
             copyEmbeddedModel(targetFile)
             if (targetFile.exists() && targetFile.length() > 0L) {
+                addModelDebug("Lokale YOLO-Datei bereit: ${describeFile(targetFile)}")
+                addModelDebug("Lokale SHA-256: ${sha256(targetFile)}")
+                addModelDebug("Datei-Header: ${fileHeaderHex(targetFile)}")
+                logEmbeddedHashIfPresent()
                 targetFile
             } else {
+                addModelDebug("Fehler: lokale Modellkopie fehlt oder ist leer: ${describeFile(targetFile)}")
                 targetFile.delete()
                 runOnUiThread {
                     fpsTextView.text = "FPS: Eingebettetes Modell leer"
@@ -113,7 +132,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             targetFile.delete()
-            Log.e(TAG, "Embedded model copy failed", e)
+            addModelDebug("Fehler beim Kopieren des eingebetteten Modells: ${e.message ?: e.javaClass.simpleName}", e)
             runOnUiThread {
                 fpsTextView.text = "FPS: Eingebettetes Modell fehlt (${e.message ?: "Unbekannter Fehler"})"
             }
@@ -122,6 +141,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun copyEmbeddedModel(targetFile: File) {
+        val rootAssets = assets.list("")?.sorted().orEmpty()
+        addModelDebug("APK-Assets sichtbar: ${rootAssets.joinToString().ifBlank { "<keine>" }}")
+        addModelDebug("Versuche Asset zu kopieren: $embeddedModelAssetName -> ${targetFile.absolutePath}")
+
         assets.open(embeddedModelAssetName).use { input ->
             targetFile.outputStream().use { output ->
                 input.copyTo(output)
@@ -129,20 +152,87 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun logVisibleModelFiles(modelDir: File) {
+        val files = modelDir.listFiles()
+            ?.sortedBy { it.name }
+            ?.joinToString { describeFile(it) }
+            ?: "<Ordner nicht lesbar>"
+        addModelDebug("Lokale Model-Dateien vorher: ${files.ifBlank { "<keine>" }}")
+    }
+
+    private fun logEmbeddedHashIfPresent() {
+        val hashAssetName = "$embeddedModelAssetName.sha256"
+        try {
+            assets.open(hashAssetName).bufferedReader().use { reader ->
+                addModelDebug("Eingebettete SHA-Datei: ${reader.readText().trim()}")
+            }
+        } catch (e: Exception) {
+            addModelDebug("Keine eingebettete SHA-Datei '$hashAssetName' gefunden (${e.message ?: e.javaClass.simpleName})")
+        }
+    }
+
+    private fun describeFile(file: File): String {
+        return "${file.name} exists=${file.exists()} size=${file.length()} path=${file.absolutePath}"
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        BufferedInputStream(file.inputStream()).use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun fileHeaderHex(file: File, byteCount: Int = 16): String {
+        val bytes = ByteArray(byteCount)
+        val read = file.inputStream().use { it.read(bytes) }
+        if (read <= 0) return "<leer>"
+        return bytes.take(read).joinToString(" ") { "%02x".format(it) }
+    }
+
+    private fun addModelDebug(message: String, throwable: Throwable? = null) {
+        val line = "YOLO Debug: $message"
+        Log.d(TAG, line, throwable)
+
+        synchronized(modelDebugLines) {
+            modelDebugLines += line
+            while (modelDebugLines.size > 30) {
+                modelDebugLines.removeAt(0)
+            }
+        }
+
+        runOnUiThread {
+            val lines = synchronized(modelDebugLines) { modelDebugLines.takeLast(10).toList() }
+            modelDebugTextView.text = lines.joinToString("\n")
+        }
+    }
+
     private fun createObjectDetector(modelFile: File?): ObjectDetector? {
         if (modelFile == null) {
+            addModelDebug("Kein ModelFile vorhanden; ObjectDetector wird nicht erstellt.")
             return null
         }
 
         return try {
+            addModelDebug("Versuche ObjectDetector zu laden: ${modelFile.absolutePath}")
             val options = ObjectDetector.ObjectDetectorOptions.builder()
                 .setMaxResults(5)
                 .setScoreThreshold(0.4f)
                 .build()
-            ObjectDetector.createFromFileAndOptions(this, modelFile.absolutePath, options)
-        } catch (_: Exception) {
+            ObjectDetector.createFromFileAndOptions(this, modelFile.absolutePath, options).also {
+                addModelDebug("ObjectDetector erfolgreich geladen.")
+            }
+        } catch (e: Exception) {
+            val errorMessage = e.message ?: e.javaClass.simpleName
+            addModelDebug("ObjectDetector-Ladefehler: $errorMessage", e)
+            addModelDebug("Hinweis: Ist die Datei vorhanden, ist oft das TFLite/Metadata-Format nicht mit TensorFlow Lite Task Vision ObjectDetector kompatibel.")
             runOnUiThread {
-                fpsTextView.text = "FPS: -- (Model konnte nicht geladen werden)"
+                fpsTextView.text = "FPS: -- (Model konnte nicht geladen werden: $errorMessage)"
             }
             null
         }
@@ -195,8 +285,10 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 overlayView.setResults(results, bitmap.width, bitmap.height)
             }
-        } catch (_: Exception) {
-            // Ignore single frame failures.
+        } catch (e: Exception) {
+            if (frameFailureLogged.compareAndSet(false, true)) {
+                addModelDebug("Erster Inferenzfehler: ${e.message ?: e.javaClass.simpleName}", e)
+            }
         } finally {
             isProcessing.set(false)
             imageProxy.close()
