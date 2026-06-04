@@ -39,6 +39,51 @@ Für den reinen Dev-Workflow gibt es ein Install-Skript, das zuerst ein normales
 
 Das reduziert "Install failed" im Alltag deutlich, auch wenn z. B. eine inkompatible Alt-Installation auf dem Gerät liegt.
 
+## YOLO-Fehlerlog finden
+Wenn die App unten im Kamerabild `Model konnte nicht geladen werden` oder andere YOLO-Debug-Zeilen anzeigt, gibt es zwei einfache Wege an die Details zu kommen:
+
+### Direkt in der App
+- Unten im Kamerabild steht ein schwarzes **YOLO Debug**-Panel.
+- Dort zeigt die App die letzten Diagnosezeilen an, z. B.:
+  - welche APK-Assets sichtbar sind (`APK-Assets sichtbar: ...`)
+  - wohin `yolo11n.tflite` kopiert wird (`files/models/yolo11n.tflite`)
+  - ob die Datei existiert und wie groß sie ist (`exists=true size=...`)
+  - SHA-256 und Datei-Header der kopierten Datei
+  - den konkreten `ObjectDetector`-Ladefehler
+- Wenn dort `APK-Assets sichtbar` **kein** `yolo11n.tflite` enthält, wurde das Modell wahrscheinlich nicht in die APK eingebettet.
+- Wenn `exists=true size=...` angezeigt wird, aber danach `ObjectDetector-Ladefehler` kommt, ist die Datei vorhanden; dann ist sehr wahrscheinlich das TFLite-/Metadata-Format nicht mit TensorFlow Lite Task Vision `ObjectDetector` kompatibel.
+
+### Über Android Studio Logcat
+1. Gerät per USB verbinden und App starten.
+2. In Android Studio unten **Logcat** öffnen.
+3. Als Prozess/Package `com.example.pocspeed` auswählen.
+4. Nach `YOLO Debug` oder nach dem Tag `MainActivity` filtern.
+
+### Über adb im Terminal
+Mit angeschlossenem Gerät kannst du das YOLO-Log auch direkt im Terminal lesen:
+
+```bash
+adb logcat -c
+adb shell am force-stop com.example.pocspeed
+adb shell monkey -p com.example.pocspeed 1
+adb logcat -s MainActivity
+```
+
+Falls dein Gerät/Terminal den Tag-Filter anders behandelt, funktioniert als Alternative meistens:
+
+```bash
+adb logcat | grep "YOLO Debug"
+```
+
+Hilfreiche Zeilen zum Kopieren/Teilen sind besonders:
+- `APK-Assets sichtbar: ...`
+- `Versuche Asset zu kopieren: ...`
+- `Lokale YOLO-Datei bereit: ... size=... path=...`
+- `Lokale SHA-256: ...`
+- `ObjectDetector-Ladefehler: ...`
+- `Erster Inferenzfehler: ...`
+
+
 
 ## Download
 <!-- AUTO-APK-LINK --> [Latest Debug APK](https://github.com/jan-rybizki/poc_speed_measurement/actions/runs/26971574066/artifacts/7419918470)

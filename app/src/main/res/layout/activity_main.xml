@@ -25,4 +25,18 @@
         android:textColor="#FFFFFF"
         android:textSize="18sp" />
 
+    <TextView
+        android:id="@+id/modelDebugTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_margin="16dp"
+        android:background="#CC000000"
+        android:maxLines="10"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp"
+        android:text="YOLO Debug: wartet..."
+        android:textColor="#FFFFFF"
+        android:textSize="12sp" />
+
 </FrameLayout>
