@@ -36,6 +36,8 @@ google-services.json
 # Gradle wrapper JAR is intentionally excluded (binary)
 gradle/wrapper/gradle-wrapper.jar
 
-# Generated YOLO model embedded by CI/local export steps
+# Generated object-detection model embedded by CI/local download steps
 app/src/main/assets/yolo11n.tflite
 app/src/main/assets/yolo11n.tflite.sha256
+app/src/main/assets/efficientdet-lite0.tflite
+app/src/main/assets/efficientdet-lite0.tflite.sha256

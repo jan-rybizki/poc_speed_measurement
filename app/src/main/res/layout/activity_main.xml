@@ -36,7 +36,7 @@
         android:maxLines="18"
         android:paddingHorizontal="10dp"
         android:paddingVertical="8dp"
-        android:text="YOLO Debug: wartet..."
+        android:text="Detektor Debug: wartet..."
         android:textColor="#FFFFFF"
         android:textSize="10sp" />
 

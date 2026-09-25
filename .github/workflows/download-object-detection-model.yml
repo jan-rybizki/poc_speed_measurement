@@ -1,0 +1,33 @@
+name: Download Object Detection Model
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Task Vision compatible EfficientDet Lite0 model
+        run: |
+          set -euo pipefail
+          model_file="efficientdet-lite0.tflite"
+          curl --fail --location --retry 3 --retry-all-errors \
+            --output "$model_file" \
+            'https://tfhub.dev/tensorflow/lite-model/efficientdet/lite0/detection/metadata/1?lite-format=tflite'
+          if [ ! -s "$model_file" ] || [ "$(wc -c < "$model_file")" -lt 1000000 ]; then
+            echo "Downloaded model is missing or unexpectedly small" >&2
+            exit 1
+          fi
+          test "$(od -An -j4 -N4 -tc "$model_file" | tr -d ' ')" = 'TFL3'
+          sha256sum "$model_file" | tee "$model_file.sha256"
+
+      - name: Upload model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: efficientdet-lite0-tflite
+          path: |
+            efficientdet-lite0.tflite
+            efficientdet-lite0.tflite.sha256
