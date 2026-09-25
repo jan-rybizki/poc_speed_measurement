@@ -15,7 +15,7 @@ nicht implementiert.
 
 ## Voraussetzungen für das Erkennungsmodell
 - Die CI-Pipeline lädt das bereits für TensorFlow Lite Task Vision aufbereitete EfficientDet-Lite0-Modell und bettet `efficientdet-lite0.tflite` direkt in die APK ein.
-- Beim App-Start kopiert die App das eingebettete Modell aus den APK-Assets nach `files/models/efficientdet-lite0.tflite` und lädt genau diese lokale Datei für TensorFlow Lite Task Vision.
+- Beim App-Start kopiert die App das eingebettete Modell zu Diagnosezwecken aus den APK-Assets nach `files/models/efficientdet-lite0.tflite` und prüft dort Größe, Header und SHA-256. TensorFlow Lite Task Vision lädt das Modell über seinen APK-Asset-Namen, wie von `ObjectDetector.createFromFileAndOptions` erwartet.
 - Dadurch ist die Debug-APK nicht von einem kurzlebigen GitHub-Actions-Artifact-Link oder einem Runtime-Download abhängig.
 - Bei jedem Start wird die lokale Kopie aus dem eingebetteten APK-Asset neu geschrieben. Damit nutzt eine aktualisierte App auch wirklich das Modell, das mit dieser APK gebaut wurde.
 - Der vorherige YOLO11n-Export wurde bewusst entfernt: Er installierte bei jedem APK-Build eine große Python-/TensorFlow-Toolchain und sein rohes Exportformat war nicht verlässlich mit `ObjectDetector` kompatibel. EfficientDet Lite0 enthält die von Task Vision erwarteten Metadaten.
@@ -35,7 +35,7 @@ installierte `gradle`-Version; das Skript fällt automatisch darauf zurück.
 ## Aktueller Pipeline-Flow
 - GitHub Actions lädt EfficientDet Lite0 direkt als `.tflite`, prüft Mindestgröße und TFLite-Dateikennung und legt es vor dem Android-Build unter `app/src/main/assets/efficientdet-lite0.tflite` ab.
 - Die APK enthält dadurch das TFLite-Modell.
-- Beim Start kopiert die App das Modell aus den Assets nach `files/models/efficientdet-lite0.tflite`.
+- Beim Start prüft die App das Modell über eine Kopie unter `files/models/efficientdet-lite0.tflite` und übergibt anschließend den APK-Asset-Namen an Task Vision.
 - CameraX Preview + `ImageAnalysis`
 - Pro zur Inferenz angenommenem Frame: Konvertierung `ImageProxy -> Bitmap`
 - Inferenz mit TFLite Task Vision `ObjectDetector`
@@ -73,6 +73,7 @@ Wenn die App unten im Kamerabild `Model konnte nicht geladen werden` oder andere
   - den konkreten `ObjectDetector`-Ladefehler
 - Wenn dort `APK-Assets sichtbar` **kein** `efficientdet-lite0.tflite` enthält, wurde das Modell wahrscheinlich nicht in die APK eingebettet.
 - Wenn `exists=true size=...` angezeigt wird, aber danach `ObjectDetector-Ladefehler` kommt, ist die Datei vorhanden; dann ist sehr wahrscheinlich das TFLite-/Metadata-Format nicht mit TensorFlow Lite Task Vision `ObjectDetector` kompatibel.
+- Das Modell muss bei einer über GitHub Actions erzeugten APK nicht händisch auf das Android-Gerät kopiert werden. Die Zeile `APK-Assets sichtbar: efficientdet-lite0.tflite` bestätigt, dass es bereits Bestandteil der APK ist.
 
 ### Über Android Studio Logcat
 1. Gerät per USB verbinden und App starten.
