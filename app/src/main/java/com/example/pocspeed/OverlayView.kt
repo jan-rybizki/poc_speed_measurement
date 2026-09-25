@@ -47,16 +47,19 @@ class OverlayView @JvmOverloads constructor(
         super.onDraw(canvas)
         if (detections.isEmpty()) return
 
-        val scaleX = width.toFloat() / imageWidth
-        val scaleY = height.toFloat() / imageHeight
+        // PreviewView fills its bounds using a center-crop transformation. Apply the same
+        // uniform scale and offsets or portrait boxes drift away from the camera objects.
+        val scale = maxOf(width.toFloat() / imageWidth, height.toFloat() / imageHeight)
+        val offsetX = (width - imageWidth * scale) / 2f
+        val offsetY = (height - imageHeight * scale) / 2f
 
         for (detection in detections) {
             val box = detection.boundingBox
             val scaledBox = RectF(
-                box.left * scaleX,
-                box.top * scaleY,
-                box.right * scaleX,
-                box.bottom * scaleY
+                box.left * scale + offsetX,
+                box.top * scale + offsetY,
+                box.right * scale + offsetX,
+                box.bottom * scale + offsetY
             )
 
             canvas.drawRect(scaledBox, boxPaint)

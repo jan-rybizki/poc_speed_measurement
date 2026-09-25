@@ -15,7 +15,7 @@ nicht implementiert.
 
 ## Voraussetzungen für das Erkennungsmodell
 - Die CI-Pipeline lädt das bereits für TensorFlow Lite Task Vision aufbereitete EfficientDet-Lite0-Modell und bettet `efficientdet-lite0.tflite` direkt in die APK ein.
-- Beim App-Start kopiert die App das eingebettete Modell zu Diagnosezwecken aus den APK-Assets nach `files/models/efficientdet-lite0.tflite` und prüft dort Größe, Header und SHA-256. TensorFlow Lite Task Vision lädt das Modell über seinen APK-Asset-Namen, wie von `ObjectDetector.createFromFileAndOptions` erwartet.
+- Beim App-Start kopiert die App das eingebettete Modell aus den APK-Assets nach `files/models/efficientdet-lite0.tflite`, prüft dort Größe, Header und SHA-256 und lädt genau diese geprüfte Datei anschließend als speichergemappten Buffer. Das funktioniert auch auf Geräten, auf denen der direkte Asset-Zugriff des Task-Vision-Loaders fehlschlägt.
 - Dadurch ist die Debug-APK nicht von einem kurzlebigen GitHub-Actions-Artifact-Link oder einem Runtime-Download abhängig.
 - Bei jedem Start wird die lokale Kopie aus dem eingebetteten APK-Asset neu geschrieben. Damit nutzt eine aktualisierte App auch wirklich das Modell, das mit dieser APK gebaut wurde.
 - Der vorherige YOLO11n-Export wurde bewusst entfernt: Er installierte bei jedem APK-Build eine große Python-/TensorFlow-Toolchain und sein rohes Exportformat war nicht verlässlich mit `ObjectDetector` kompatibel. EfficientDet Lite0 enthält die von Task Vision erwarteten Metadaten.
@@ -35,7 +35,7 @@ installierte `gradle`-Version; das Skript fällt automatisch darauf zurück.
 ## Aktueller Pipeline-Flow
 - GitHub Actions lädt EfficientDet Lite0 direkt als `.tflite`, prüft Mindestgröße und TFLite-Dateikennung und legt es vor dem Android-Build unter `app/src/main/assets/efficientdet-lite0.tflite` ab.
 - Die APK enthält dadurch das TFLite-Modell.
-- Beim Start prüft die App das Modell über eine Kopie unter `files/models/efficientdet-lite0.tflite` und übergibt anschließend den APK-Asset-Namen an Task Vision.
+- Beim Start prüft die App das Modell über eine Kopie unter `files/models/efficientdet-lite0.tflite` und übergibt diese Kopie anschließend als speichergemappten Buffer an Task Vision.
 - CameraX Preview + `ImageAnalysis`
 - Pro zur Inferenz angenommenem Frame: Konvertierung `ImageProxy -> Bitmap`
 - Inferenz mit TFLite Task Vision `ObjectDetector`
