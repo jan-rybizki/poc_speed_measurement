@@ -1,4 +1,4 @@
-# POC: Realtime Car Detection für Android
+# POC: Realtime Object Detection für Android
 
 ## Ziel
 Dieses Repository enthält ein Android-POC mit:
@@ -7,27 +7,44 @@ Dieses Repository enthält ein Android-POC mit:
 - Realtime Object Detection über TensorFlow Lite (YOLO-kompatibles `.tflite` Modell)
 - Bounding Boxes + Klassenlabel + Confidence im Overlay
 
+Die App erkennt alle Klassen, die das eingebettete Modell liefert; sie filtert
+die Ergebnisse derzeit nicht auf Autos. Trotz des Repository-Namens misst der
+aktuelle Stand noch keine Geschwindigkeit: Objekt-Tracking, Kamera- bzw.
+Perspektivkalibrierung und die Umrechnung einer Bewegung in km/h oder m/s sind
+nicht implementiert.
+
 ## Voraussetzungen für YOLO
 - Die CI-Pipeline exportiert YOLO11n vor dem APK-Build nach TensorFlow Lite und bettet `yolo11n.tflite` direkt in die APK ein.
 - Beim App-Start kopiert die App das eingebettete Modell aus den APK-Assets nach `files/models/yolo11n.tflite` und lädt genau diese lokale Datei für TensorFlow Lite Task Vision.
 - Dadurch ist die Debug-APK nicht von einem kurzlebigen GitHub-Actions-Artifact-Link oder einem Runtime-Download abhängig.
 - Bei jedem Start wird die lokale Kopie aus dem eingebetteten APK-Asset neu geschrieben. Damit nutzt eine aktualisierte App auch wirklich das Modell, das mit dieser APK gebaut wurde.
+- Nicht jede durch einen YOLO-Exporter erzeugte `.tflite`-Datei ist automatisch mit dem TensorFlow Lite Task Vision `ObjectDetector` kompatibel. Das Modell muss dessen erwartete Ein-/Ausgaben und Metadaten besitzen. Die aktuelle Pipeline bettet das Exportergebnis ein, führt aber noch keinen Laufzeittest mit `ObjectDetector` aus.
 
 ## Lokal starten (Android Studio)
 1. Projekt in Android Studio öffnen.
-2. Für lokale Builds zuerst ein TFLite-Modell unter `app/src/main/assets/yolo11n.tflite` bereitstellen. Die CI erledigt diesen Schritt automatisch; lokal kannst du die Befehle aus dem Abschnitt **YOLO11n lokal exportieren und einbetten** nutzen.
+2. Für lokale Builds zuerst ein kompatibles TFLite-Modell unter `app/src/main/assets/yolo11n.tflite` bereitstellen. Die Modelldatei wird absichtlich nicht eingecheckt; ein frischer Checkout kann daher zwar gebaut werden, besitzt ohne diesen Schritt aber keine funktionierende Objekterkennung. Die CI erzeugt und kopiert die Datei automatisch; lokal kannst du die Befehle aus dem Abschnitt **YOLO11n lokal exportieren und einbetten** nutzen.
 3. Gradle Sync durchführen.
 4. App auf ein Gerät mit Kamera installieren/starten.
 5. Beim ersten Start Kameraberechtigung erlauben.
+
+Die binäre `gradle-wrapper.jar` wird in diesem Repository nicht versioniert.
+Android Studio bringt die nötige Gradle-Unterstützung mit. Wer `./gradlew`
+außerhalb von Android Studio verwendet, benötigt deshalb eine systemweit
+installierte `gradle`-Version; das Skript fällt automatisch darauf zurück.
 
 ## Aktueller Pipeline-Flow
 - GitHub Actions lädt `yolo11n.pt`, exportiert es nach `.tflite` und kopiert das Ergebnis vor dem Android-Build nach `app/src/main/assets/yolo11n.tflite`.
 - Die APK enthält dadurch das TFLite-Modell.
 - Beim Start kopiert die App das Modell aus den Assets nach `files/models/yolo11n.tflite`.
 - CameraX Preview + `ImageAnalysis`
-- Pro Frame: Konvertierung `ImageProxy -> Bitmap`
+- Pro zur Inferenz angenommenem Frame: Konvertierung `ImageProxy -> Bitmap`
 - Inferenz mit TFLite Task Vision `ObjectDetector`
 - Zeichnen von Bounding Boxes und Klassen in `OverlayView`
+
+CameraX verwirft bei Rückstau ältere Frames, und während einer laufenden
+Inferenz wird kein zweiter Frame verarbeitet. Die eingeblendete FPS-Zahl zählt
+die Aufrufe des Image-Analyzers; sie ist deshalb keine Messung der erfolgreich
+abgeschlossenen YOLO-Inferenzen pro Sekunde.
 
 
 ## Stabiler Dev-Install-Workflow (verhindert Install-Fehler bei Updates)
@@ -37,7 +54,11 @@ Für den reinen Dev-Workflow gibt es ein Install-Skript, das zuerst ein normales
 2. Im Projektroot ausführen:
    `./scripts/dev-install.sh`
 
-Das reduziert "Install failed" im Alltag deutlich, auch wenn z. B. eine inkompatible Alt-Installation auf dem Gerät liegt.
+Das Skript baut und installiert die APK, verändert dabei aber keine
+Repository-Dateien. Bei `INSTALL_FAILED_UPDATE_INCOMPATIBLE` oder
+`INSTALL_FAILED_VERSION_DOWNGRADE` deinstalliert es die vorhandene App und
+versucht danach eine frische Installation. Andere Fehler, beispielsweise eine
+ungültige APK, werden ausgegeben, ohne die installierte App zu entfernen.
 
 ## YOLO-Fehlerlog finden
 Wenn die App unten im Kamerabild `Model konnte nicht geladen werden` oder andere YOLO-Debug-Zeilen anzeigt, gibt es zwei einfache Wege an die Details zu kommen:
@@ -86,7 +107,11 @@ Hilfreiche Zeilen zum Kopieren/Teilen sind besonders:
 
 
 ## Download
-<!-- AUTO-APK-LINK --> [Latest Debug APK](https://github.com/jan-rybizki/poc_speed_measurement/actions/runs/26974483028/artifacts/7421103722)
+Die CI stellt die Debug-APK als zeitlich begrenztes GitHub-Actions-Artifact
+bereit. Den jeweils verfügbaren Build findest du in den
+[Workflow-Läufen von Android Debug Artifact](https://github.com/jan-rybizki/poc_speed_measurement/actions/workflows/android-artifact.yml).
+Ein bestimmter Artifact-Link ist nicht dauerhaft und wird deshalb hier nicht
+als stabiler „Latest“-Download veröffentlicht.
 
 
 ## Wichtiger Hinweis zu `.pt`
@@ -106,6 +131,12 @@ Der Workflow **Android Debug Artifact** baut jetzt App und Modell zusammen:
 Datei: `.github/workflows/android-artifact.yml`.
 
 Der separate Workflow **Build YOLO11n TFLite** bleibt nützlich, wenn du nur den YOLO-Export testen oder die Modell-Dateien separat als Artifact/Release erzeugen möchtest.
+
+> **Kompatibilitätshinweis:** Ein erfolgreicher `yolo export` und Android-Build
+> beweisen noch nicht, dass Task Vision das Modell laden kann. Prüfe nach dem
+> Export auf einem Gerät das Debug-Panel auf `ObjectDetector erfolgreich
+> geladen.`. Bei `ObjectDetector-Ladefehler` muss das Modell in einem für Task
+> Vision geeigneten Format samt Metadaten bereitgestellt werden.
 
 ## YOLO11n lokal exportieren und einbetten
 Für einen lokalen Android-Studio-Build kannst du das Modell ebenfalls lokal erzeugen:
