@@ -35,6 +35,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    // Task Vision memory-maps TFLite models. Keep the model stored (rather than
+    // deflated) in the APK so it can also be loaded directly from assets.
+    androidResources {
+        noCompress += "tflite"
+    }
 }
 
 dependencies {

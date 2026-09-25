@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
+import android.graphics.Matrix
 import android.graphics.Rect
 import android.graphics.YuvImage
 import android.os.Bundle
@@ -24,6 +25,9 @@ import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.nio.MappedByteBuffer
+import java.nio.channels.FileChannel
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -48,6 +52,7 @@ class MainActivity : AppCompatActivity() {
     private val isProcessing = AtomicBoolean(false)
 
     private var objectDetector: ObjectDetector? = null
+    private var mappedModel: MappedByteBuffer? = null
     @Volatile
     private var modelStatusText = "Detektor: startet"
     private val frameFailureLogged = AtomicBoolean(false)
@@ -225,20 +230,26 @@ class MainActivity : AppCompatActivity() {
 
         return try {
             addModelDebug(
-                "Versuche ObjectDetector aus APK-Asset zu laden: $embeddedModelAssetName " +
+                "Versuche ObjectDetector aus lokaler Kopie zu laden: $embeddedModelAssetName " +
                     "(geprüfte Kopie: ${modelFile.absolutePath})"
             )
             val options = ObjectDetector.ObjectDetectorOptions.builder()
                 .setMaxResults(5)
                 .setScoreThreshold(0.4f)
                 .build()
-            // createFromFileAndOptions resolves its model path through Android's AssetManager.
-            // Passing modelFile.absolutePath therefore makes it look for an APK asset whose
-            // name happens to be the full /data/user/... path. Use the embedded asset name;
-            // the copied file above is retained for integrity diagnostics.
-            ObjectDetector.createFromFileAndOptions(this, embeddedModelAssetName, options).also {
+            // Loading from the verified local copy avoids AssetManager mmap failures when an
+            // APK packager/device happens to compress the asset. Task Vision requires a direct
+            // or memory-mapped ByteBuffer, so retain the mapping for the detector's lifetime.
+            val modelBuffer = FileInputStream(modelFile).channel.use { channel ->
+                channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size())
+            }
+            mappedModel = modelBuffer
+            ObjectDetector.createFromBufferAndOptions(modelBuffer, options).also {
                 modelStatusText = "Detektor: geladen"
-                addModelDebug("ObjectDetector erfolgreich geladen.")
+                addModelDebug("ObjectDetector erfolgreich aus lokaler Modellkopie geladen.")
+                runOnUiThread {
+                    modelDebugTextView.visibility = android.view.View.GONE
+                }
             }
         } catch (e: Exception) {
             val errorMessage = e.message ?: e.javaClass.simpleName
@@ -292,7 +303,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         try {
-            val bitmap = imageProxyToBitmap(imageProxy)
+            val bitmap = rotateBitmap(
+                imageProxyToBitmap(imageProxy),
+                imageProxy.imageInfo.rotationDegrees
+            )
             val tensorImage = TensorImage.fromBitmap(bitmap)
             val results = detector.detect(tensorImage)
 
@@ -320,6 +334,14 @@ class MainActivity : AppCompatActivity() {
         yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 90, out)
         val bytes = out.toByteArray()
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    }
+
+    private fun rotateBitmap(bitmap: Bitmap, rotationDegrees: Int): Bitmap {
+        if (rotationDegrees == 0) return bitmap
+        val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (rotated !== bitmap) bitmap.recycle()
+        return rotated
     }
 
     private fun yuv420888ToNv21(image: ImageProxy): ByteArray {
@@ -395,6 +417,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        objectDetector?.close()
+        objectDetector = null
+        mappedModel = null
         super.onDestroy()
         cameraExecutor.shutdown()
         modelExecutor.shutdown()
