@@ -49,12 +49,12 @@ class MainActivity : AppCompatActivity() {
 
     private var objectDetector: ObjectDetector? = null
     @Volatile
-    private var modelStatusText = "YOLO: startet"
+    private var modelStatusText = "Detektor: startet"
     private val frameFailureLogged = AtomicBoolean(false)
     private val modelDebugLines = mutableListOf<String>()
 
     // Runtime model for TFLite Task Vision. The CI build embeds this asset into the APK.
-    private val modelFileName = "yolo11n.tflite"
+    private val modelFileName = "efficientdet-lite0.tflite"
     private val embeddedModelAssetName = modelFileName
 
     private val requestPermissionLauncher =
@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun prepareModelAndStart() {
-        addModelDebug("Start: suche YOLO Asset '$embeddedModelAssetName'")
+        addModelDebug("Start: suche Modell-Asset '$embeddedModelAssetName'")
         modelExecutor.execute {
             val modelFile = ensureModelFile()
             objectDetector = createObjectDetector(modelFile)
@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
         return try {
             copyEmbeddedModel(targetFile)
             if (targetFile.exists() && targetFile.length() > 0L) {
-                addModelDebug("Lokale YOLO-Datei bereit: ${describeFile(targetFile)}")
+                addModelDebug("Lokale Modell-Datei bereit: ${describeFile(targetFile)}")
                 addModelDebug("Lokale SHA-256: ${sha256(targetFile)}")
                 addModelDebug("Datei-Header: ${fileHeaderHex(targetFile)}")
                 logEmbeddedHashIfPresent()
@@ -200,7 +200,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun addModelDebug(message: String, throwable: Throwable? = null) {
-        val line = "YOLO Debug: $message"
+        val line = "Detektor Debug: $message"
         Log.d(TAG, line, throwable)
 
         synchronized(modelDebugLines) {
@@ -219,7 +219,7 @@ class MainActivity : AppCompatActivity() {
     private fun createObjectDetector(modelFile: File?): ObjectDetector? {
         if (modelFile == null) {
             addModelDebug("Kein ModelFile vorhanden; ObjectDetector wird nicht erstellt.")
-            modelStatusText = "YOLO: Model-Datei fehlt"
+            modelStatusText = "Detektor: Model-Datei fehlt"
             return null
         }
 
@@ -230,12 +230,12 @@ class MainActivity : AppCompatActivity() {
                 .setScoreThreshold(0.4f)
                 .build()
             ObjectDetector.createFromFileAndOptions(this, modelFile.absolutePath, options).also {
-                modelStatusText = "YOLO: geladen"
+                modelStatusText = "Detektor: geladen"
                 addModelDebug("ObjectDetector erfolgreich geladen.")
             }
         } catch (e: Exception) {
             val errorMessage = e.message ?: e.javaClass.simpleName
-            modelStatusText = "YOLO: Ladefehler"
+            modelStatusText = "Detektor: Ladefehler"
             addModelDebug("ObjectDetector-Ladefehler: $errorMessage", e)
             addModelDebug("Hinweis: Datei ist da; meist passt das TFLite/Metadata-Format nicht zum Task Vision ObjectDetector.")
             runOnUiThread {
@@ -294,7 +294,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             if (frameFailureLogged.compareAndSet(false, true)) {
-                modelStatusText = "YOLO: Inferenzfehler"
+                modelStatusText = "Detektor: Inferenzfehler"
                 addModelDebug("Erster Inferenzfehler: ${e.message ?: e.javaClass.simpleName}", e)
                 runOnUiThread {
                     updateFpsText()
