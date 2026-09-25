@@ -224,12 +224,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         return try {
-            addModelDebug("Versuche ObjectDetector zu laden: ${modelFile.absolutePath}")
+            addModelDebug(
+                "Versuche ObjectDetector aus APK-Asset zu laden: $embeddedModelAssetName " +
+                    "(geprüfte Kopie: ${modelFile.absolutePath})"
+            )
             val options = ObjectDetector.ObjectDetectorOptions.builder()
                 .setMaxResults(5)
                 .setScoreThreshold(0.4f)
                 .build()
-            ObjectDetector.createFromFileAndOptions(this, modelFile.absolutePath, options).also {
+            // createFromFileAndOptions resolves its model path through Android's AssetManager.
+            // Passing modelFile.absolutePath therefore makes it look for an APK asset whose
+            // name happens to be the full /data/user/... path. Use the embedded asset name;
+            // the copied file above is retained for integrity diagnostics.
+            ObjectDetector.createFromFileAndOptions(this, embeddedModelAssetName, options).also {
                 modelStatusText = "Detektor: geladen"
                 addModelDebug("ObjectDetector erfolgreich geladen.")
             }
